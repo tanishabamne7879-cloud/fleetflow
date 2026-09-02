@@ -6,34 +6,22 @@ from app.models.vehicle import Vehicle, VehicleStatusEnum, VehicleTypeEnum
 from app.models.user import RoleEnum
 from app.models.driver import Driver
 from app.core.deps import get_current_active_user, role_required
-from app.schemas.vehicle import (
-    VehicleCreate, VehicleUpdate, VehicleOut, 
-    VehicleListOut, VehicleStatusUpdate
-)
+from app.schemas.vehicle import VehicleCreate, VehicleUpdate, VehicleOut, VehicleListOut, VehicleStatusUpdate
 from app.crud.vehicle import (
     get_vehicle_by_id, get_vehicle_by_registration, get_vehicles,
-    get_vehicles_count, get_vehicle_status_counts, create_vehicle,
+    get_vehicle_status_counts, create_vehicle,
     update_vehicle, update_vehicle_status, delete_vehicle, get_driver_name
 )
 
 router = APIRouter()
 
-# ============= TEST ROUTE =============
-@router.get("/test")
-def test_vehicle_route():
-    return {"message": "Vehicle route is working!"}
-
-# ============= CREATE VEHICLE =============
+# ✅ ADMIN & FLEET MANAGER can create vehicles
 @router.post("/", response_model=VehicleOut, status_code=status.HTTP_201_CREATED)
 def create_new_vehicle(
     vehicle_data: VehicleCreate,
     db: Session = Depends(get_db),
     current_user = Depends(role_required([RoleEnum.Admin, RoleEnum.FleetManager]))
 ):
-    """Create a new vehicle (Admin/FleetManager only)"""
-    print(f"🚗 Creating vehicle: {vehicle_data.registration_number}")
-    
-    # Check if registration number exists
     existing = get_vehicle_by_registration(db, vehicle_data.registration_number)
     if existing:
         raise HTTPException(
@@ -41,7 +29,6 @@ def create_new_vehicle(
             detail=f"Registration number {vehicle_data.registration_number} already exists"
         )
     
-    # Check if driver exists if assigned
     if vehicle_data.assigned_driver_id:
         driver = db.query(Driver).filter(
             Driver.driver_id == vehicle_data.assigned_driver_id
@@ -52,29 +39,21 @@ def create_new_vehicle(
                 detail="Driver not found"
             )
     
-    # Create vehicle
-    try:
-        vehicle = create_vehicle(db, vehicle_data.dict())
-        print(f"✅ Vehicle created: {vehicle.vehicle_id}")
-    except Exception as e:
-        print(f"❌ Error creating vehicle: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating vehicle: {str(e)}"
-        )
+    vehicle_dict = vehicle_data.dict()
+    if 'status' not in vehicle_dict or not vehicle_dict['status']:
+        vehicle_dict['status'] = VehicleStatusEnum.Available
     
-    # Get driver name for response
+    vehicle = create_vehicle(db, vehicle_dict)
+    
     driver_name = None
     if vehicle.assigned_driver_id:
         driver_name = get_driver_name(db, vehicle.assigned_driver_id)
     
-    # Prepare response
     response = VehicleOut(**vehicle.__dict__)
     response.driver_name = driver_name
-    
     return response
 
-# ============= GET ALL VEHICLES =============
+# ✅ ALL ROLES can view vehicles (but Driver sees only own vehicle)
 @router.get("/", response_model=List[VehicleListOut])
 def get_all_vehicles(
     status: Optional[VehicleStatusEnum] = None,
@@ -85,74 +64,55 @@ def get_all_vehicles(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Get all vehicles with filters"""
-    print(f"📋 Getting vehicles: status={status}, type={vehicle_type}, search={search}")
-    
-    # First, fix any vehicles with empty status
-    db.query(Vehicle).filter(
-        (Vehicle.status == '') | (Vehicle.status == None)
-    ).update({"status": VehicleStatusEnum.Available})
-    db.commit()
-    
     vehicles = get_vehicles(db, status, vehicle_type, search, skip, limit)
     
-    # Add driver names
     result = []
     for vehicle in vehicles:
-        # Fix empty status
-        if vehicle.status is None or vehicle.status == '':
-            vehicle.status = VehicleStatusEnum.Available
+        # ✅ FIX: Get driver_id from Driver model
+        if current_user.role == RoleEnum.Driver:
+            driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+            if not driver or vehicle.assigned_driver_id != driver.driver_id:
+                continue
         
         driver_name = None
         if vehicle.assigned_driver_id:
             driver_name = get_driver_name(db, vehicle.assigned_driver_id)
         
-        try:
-            vehicle_out = VehicleListOut(**vehicle.__dict__)
-            vehicle_out.driver_name = driver_name
-            result.append(vehicle_out)
-        except Exception as e:
-            print(f"Error converting vehicle {vehicle.vehicle_id}: {e}")
-            # Create a manual response
-            result.append({
-                "vehicle_id": vehicle.vehicle_id,
-                "registration_number": vehicle.registration_number,
-                "vehicle_type": vehicle.vehicle_type,
-                "status": "Available",
-                "driver_name": driver_name
-            })
+        vehicle_out = VehicleListOut(**vehicle.__dict__)
+        vehicle_out.driver_name = driver_name
+        result.append(vehicle_out)
     
     return result
-# ============= VEHICLE STATS =============
+
+# ✅ ALL ROLES can view stats (Driver sees only their own)
 @router.get("/stats")
 def get_vehicle_stats(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Get vehicle statistics"""
     counts = get_vehicle_status_counts(db)
+    
+    # ✅ Driver sees only their own vehicle status
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if driver:
+            vehicle = db.query(Vehicle).filter(Vehicle.assigned_driver_id == driver.driver_id).first()
+            if vehicle:
+                return {
+                    "total": 1,
+                    vehicle.status.value: 1
+                }
+        return {"total": 0}
+    
     return counts
 
-# ============= STATUS OPTIONS =============
-@router.get("/status/options")
-def get_status_options():
-    """Get all available vehicle status options"""
-    return {"statuses": [status.value for status in VehicleStatusEnum]}
-
-# ============= TYPE OPTIONS =============
-@router.get("/type/options")
-def get_type_options():
-    """Get all available vehicle type options"""
-    return {"types": [type.value for type in VehicleTypeEnum]}
-
-# ============= GET SINGLE VEHICLE =============
+# ✅ ALL ROLES can view vehicle details (Driver sees only own)
 @router.get("/{vehicle_id}", response_model=VehicleOut)
 def get_vehicle(
     vehicle_id: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Get vehicle by ID"""
     vehicle = get_vehicle_by_id(db, vehicle_id)
     if not vehicle:
         raise HTTPException(
@@ -160,17 +120,24 @@ def get_vehicle(
             detail="Vehicle not found"
         )
     
-    # Get driver name
+    # ✅ Driver can view only their assigned vehicle
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if not driver or vehicle.assigned_driver_id != driver.driver_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your assigned vehicle"
+            )
+    
     driver_name = None
     if vehicle.assigned_driver_id:
         driver_name = get_driver_name(db, vehicle.assigned_driver_id)
     
     response = VehicleOut(**vehicle.__dict__)
     response.driver_name = driver_name
-    
     return response
 
-# ============= UPDATE VEHICLE =============
+# ✅ ADMIN & FLEET MANAGER can update vehicles
 @router.put("/{vehicle_id}", response_model=VehicleOut)
 def update_vehicle_details(
     vehicle_id: str,
@@ -178,102 +145,69 @@ def update_vehicle_details(
     db: Session = Depends(get_db),
     current_user = Depends(role_required([RoleEnum.Admin, RoleEnum.FleetManager]))
 ):
-    """Update vehicle details (Admin/FleetManager only)"""
-    # Check if vehicle exists
     vehicle = get_vehicle_by_id(db, vehicle_id)
     if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
+        raise HTTPException(status_code=404, detail="Vehicle not found")
     
-    # Check registration number uniqueness
-    if vehicle_data.registration_number:
-        existing = get_vehicle_by_registration(db, vehicle_data.registration_number)
-        if existing and existing.vehicle_id != vehicle_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Registration number already exists"
-            )
+    # ✅ FIX: Ensure status is never empty
+    if vehicle.status is None or vehicle.status == '':
+        vehicle.status = VehicleStatusEnum.Available
+        db.commit()
+        db.refresh(vehicle)
     
-    # Check if driver exists if assigned
-    if vehicle_data.assigned_driver_id:
-        driver = db.query(Driver).filter(
-            Driver.driver_id == vehicle_data.assigned_driver_id
-        ).first()
-        if not driver:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Driver not found"
-            )
-    
-    # Update vehicle
     update_dict = vehicle_data.dict(exclude_unset=True)
     updated_vehicle = update_vehicle(db, vehicle_id, update_dict)
     
-    # Get driver name for response
+    # ✅ FIX: Ensure status is never empty after update
+    if updated_vehicle.status is None or updated_vehicle.status == '':
+        updated_vehicle.status = VehicleStatusEnum.Available
+        db.commit()
+        db.refresh(updated_vehicle)
+    
     driver_name = None
     if updated_vehicle.assigned_driver_id:
         driver_name = get_driver_name(db, updated_vehicle.assigned_driver_id)
     
     response = VehicleOut(**updated_vehicle.__dict__)
     response.driver_name = driver_name
-    
     return response
 
-# ============= UPDATE STATUS =============
-@router.patch("/{vehicle_id}/status", response_model=VehicleOut)
+
+# ✅ ADMIN, FLEET MANAGER, DISPATCHER can update status
+@router.patch("/{vehicle_id}/status")
 def update_vehicle_status_endpoint(
     vehicle_id: str,
     status_data: VehicleStatusUpdate,
     db: Session = Depends(get_db),
     current_user = Depends(role_required([RoleEnum.Admin, RoleEnum.FleetManager, RoleEnum.Dispatcher]))
 ):
-    """Update vehicle status"""
-    # First get the vehicle
-    vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
+    vehicle = get_vehicle_by_id(db, vehicle_id)
     if not vehicle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Vehicle not found"
-        )
+        raise HTTPException(status_code=404, detail="Vehicle not found")
     
-    # Fix empty status before update
-    if vehicle.status is None or vehicle.status == '':
-        vehicle.status = VehicleStatusEnum.Available
-    
-    # Update status
     vehicle.status = status_data.status
     db.commit()
     db.refresh(vehicle)
     
-    # Get driver name for response
-    driver_name = None
-    if vehicle.assigned_driver_id:
-        driver_name = get_driver_name(db, vehicle.assigned_driver_id)
+    # ✅ FIX: Handle status value safely
+    if hasattr(vehicle.status, 'value'):
+        status_value = vehicle.status.value
+    else:
+        status_value = vehicle.status
     
-    try:
-        response = VehicleOut(**vehicle.__dict__)
-        response.driver_name = driver_name
-        return response
-    except Exception as e:
-        print(f"Error creating response: {e}")
-        # Return a simple response
-        return {
-            "vehicle_id": vehicle.vehicle_id,
-            "registration_number": vehicle.registration_number,
-            "status": vehicle.status.value if hasattr(vehicle.status, 'value') else vehicle.status,
-            "message": "Status updated successfully"
-        }
+    return {
+        "vehicle_id": vehicle.vehicle_id,
+        "registration_number": vehicle.registration_number,
+        "status": status_value,
+    }
 
-# ============= DELETE VEHICLE =============
+# ✅ ADMIN only can delete vehicles
 @router.delete("/{vehicle_id}")
 def delete_vehicle_endpoint(
     vehicle_id: str,
     db: Session = Depends(get_db),
     current_user = Depends(role_required([RoleEnum.Admin]))
 ):
-    """Delete vehicle (Admin only)"""
     success = delete_vehicle(db, vehicle_id)
     if not success:
         raise HTTPException(

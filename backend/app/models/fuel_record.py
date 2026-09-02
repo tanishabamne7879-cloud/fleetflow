@@ -1,6 +1,6 @@
 import uuid
-from sqlalchemy import Column, ForeignKey, Float, DateTime
-from sqlalchemy.dialects.mysql import CHAR, DECIMAL
+from sqlalchemy import Column, ForeignKey, DateTime, DECIMAL
+from sqlalchemy.dialects.mysql import CHAR
 from datetime import datetime
 from app.database import Base
 

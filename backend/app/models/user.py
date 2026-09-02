@@ -1,7 +1,7 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, DateTime, Boolean, text
-from sqlalchemy.dialects.mysql import CHAR, ENUM
+from sqlalchemy import Column, String, DateTime, Boolean, Enum
+from sqlalchemy.dialects.mysql import CHAR
 from datetime import datetime
 from app.database import Base
 
@@ -19,7 +19,7 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=False)
     phone = Column(String(15), nullable=True)
-    role = Column(ENUM(RoleEnum), nullable=False, default=RoleEnum.Driver)
+    role = Column(Enum(RoleEnum), nullable=False, default=RoleEnum.Driver)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

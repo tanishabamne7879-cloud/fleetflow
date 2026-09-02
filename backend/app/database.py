@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:@localhost:3306/fleetflow_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:123456@localhost:3307/fleetflow_db")
 
 engine = create_engine(
     DATABASE_URL,

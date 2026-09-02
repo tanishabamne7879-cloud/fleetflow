@@ -7,7 +7,6 @@ import uuid
 class OTPService:
     @staticmethod
     def create_and_send_otp(db: Session, email: str) -> bool:
-        """Create OTP and send to email (or console for testing)"""
         # Invalidate old OTPs
         db.query(OTP).filter(
             OTP.email == email,
@@ -28,23 +27,20 @@ class OTPService:
         db.add(otp)
         db.commit()
         
-        # For testing: always print OTP and return True
+        # Always print OTP and return True
         print(f"\n{'='*50}")
         print(f"📧 OTP for {email}: {otp_code}")
         print(f"{'='*50}\n")
         
-        # Try to send email, but don't fail if it doesn't work
         try:
             EmailService.send_otp_email(email, otp_code)
         except Exception as e:
-            print(f"⚠️ Email sending failed, but OTP is shown above.")
+            print(f"⚠️ Email sending failed: {e}")
         
-        # Always return True for testing
         return True
     
     @staticmethod
     def verify_otp(db: Session, email: str, otp_code: str) -> bool:
-        """Verify OTP code"""
         otp = db.query(OTP).filter(
             OTP.email == email,
             OTP.otp_code == otp_code,

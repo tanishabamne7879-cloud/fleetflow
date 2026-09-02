@@ -1,7 +1,7 @@
 import uuid
 import enum
-from sqlalchemy import Column, ForeignKey, String, Float, DateTime, Enum, Text
-from sqlalchemy.dialects.mysql import CHAR, DECIMAL
+from sqlalchemy import Column, ForeignKey, String, DateTime, Enum, DECIMAL, Text
+from sqlalchemy.dialects.mysql import CHAR
 from datetime import datetime
 from app.database import Base
 
@@ -19,8 +19,10 @@ class VehicleMaintenance(Base):
     maintenance_type = Column(String(50))
     description = Column(Text)
     scheduled_date = Column(DateTime)
-    completed_date = Column(DateTime)
-    cost = Column(DECIMAL(12, 2))
+    completed_date = Column(DateTime, nullable=True)
+    cost = Column(DECIMAL(12, 2), default=0)
     status = Column(Enum(MaintenanceStatusEnum), default=MaintenanceStatusEnum.Scheduled)
+    notes = Column(Text, nullable=True)
+    created_by = Column(CHAR(36), ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

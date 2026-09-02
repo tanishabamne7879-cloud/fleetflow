@@ -59,4 +59,4 @@ class EmailService:
         except Exception as e:
             print(f"⚠️ Email error: {e}")
             print(f"📧 OTP for {email} (console): {otp_code}")
-            return True  # Always return True for testing
+            return True

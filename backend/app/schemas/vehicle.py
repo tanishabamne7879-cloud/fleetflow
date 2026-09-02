@@ -1,11 +1,11 @@
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, validator
 from typing import Optional
 from datetime import datetime
 from app.models.vehicle import VehicleStatusEnum, VehicleTypeEnum, FuelTypeEnum
 
 class VehicleCreate(BaseModel):
     registration_number: str = Field(..., min_length=3, max_length=20)
-    vehicle_type: VehicleTypeEnum
+    vehicle_type: VehicleTypeEnum = VehicleTypeEnum.Truck
     brand: Optional[str] = Field(None, max_length=50)
     model: Optional[str] = Field(None, max_length=50)
     manufacture_year: Optional[int] = Field(None, ge=1900, le=datetime.now().year + 1)
@@ -13,12 +13,7 @@ class VehicleCreate(BaseModel):
     capacity_kg: Optional[float] = Field(None, ge=0)
     assigned_driver_id: Optional[str] = None
     notes: Optional[str] = None
-    
-    @validator('registration_number')
-    def validate_registration(cls, v):
-        if not v or len(v.strip()) < 3:
-            raise ValueError('Registration number must be at least 3 characters')
-        return v.upper().strip()
+    status: Optional[VehicleStatusEnum] = VehicleStatusEnum.Available
 
 class VehicleUpdate(BaseModel):
     registration_number: Optional[str] = Field(None, min_length=3, max_length=20)
@@ -31,12 +26,6 @@ class VehicleUpdate(BaseModel):
     status: Optional[VehicleStatusEnum] = None
     assigned_driver_id: Optional[str] = None
     notes: Optional[str] = None
-    
-    @validator('registration_number')
-    def validate_registration(cls, v):
-        if v:
-            return v.upper().strip()
-        return v
 
 class VehicleStatusUpdate(BaseModel):
     status: VehicleStatusEnum

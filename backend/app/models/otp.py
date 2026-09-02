@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Boolean, text
+from sqlalchemy import Column, String, DateTime, Boolean
 from sqlalchemy.dialects.mysql import CHAR
 from datetime import datetime, timedelta
 from app.database import Base

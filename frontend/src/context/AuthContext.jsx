@@ -15,12 +15,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
     const token = localStorage.getItem('access_token');
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
+    if (token) {
+      api.get('/auth/me')
+        .then(response => {
+          setUser(response.data);
+          localStorage.setItem('user', JSON.stringify(response.data));
+        })
+        .catch(() => {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const signup = async (userData) => {
@@ -58,12 +67,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const formData = new FormData();
+      // ✅ USE URLSearchParams for Form Data
+      const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
       const response = await api.post('/auth/login', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
       });
 
       const { access_token } = response.data;
@@ -88,9 +100,21 @@ export const AuthProvider = ({ children }) => {
     toast.success('Logged out');
   };
 
+  const updateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
   return (
     <AuthContext.Provider value={{
-      user, loading, signup, login, logout, sendOTP, verifyOTP,
+      user,
+      loading,
+      signup,
+      login,
+      logout,
+      sendOTP,
+      verifyOTP,
+      updateUser,
       isAuthenticated: !!localStorage.getItem('access_token')
     }}>
       {children}
