@@ -1,9 +1,11 @@
+// frontend/src/pages/Trips.jsx - Add Edit button
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { FaRoute, FaPlus, FaSignOutAlt, FaEye, FaPlay, FaStop, FaTruck, FaUser } from 'react-icons/fa';
+import { FaRoute, FaPlus, FaSignOutAlt, FaEye, FaEdit, FaPlay, FaStop, FaTruck, FaUser, FaTrash } from 'react-icons/fa';
 
 const Trips = () => {
     const { user, logout } = useAuth();
@@ -49,6 +51,17 @@ const Trips = () => {
         }
     };
 
+    const deleteTrip = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this trip?')) return;
+        try {
+            await api.delete(`/trips/${id}`);
+            toast.success('Trip deleted successfully');
+            fetchTrips();
+        } catch (error) {
+            toast.error('Failed to delete trip');
+        }
+    };
+
     const getStatusColor = (status) => {
         switch(status) {
             case 'Scheduled': return 'badge-primary';
@@ -90,7 +103,6 @@ const Trips = () => {
                             </div>
                             <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 transition">Dashboard</Link>
                             <Link to="/trips" className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1">Trips</Link>
-                            <Link to="/vehicles" className="text-gray-600 hover:text-blue-600 transition">Vehicles</Link>
                         </div>
                         <div className="flex items-center space-x-6">
                             <div className="flex items-center space-x-3">
@@ -114,7 +126,6 @@ const Trips = () => {
             <div className="container-custom mx-auto py-8">
                 <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                     <h2 className="text-2xl font-bold text-gray-900">Trips</h2>
-                    {/* ✅ FIX: Trip add button should open trip form */}
                     <Link to="/trips/add" className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition hover:scale-105">
                         <FaPlus />
                         <span>Add Trip</span>
@@ -183,6 +194,14 @@ const Trips = () => {
                                                     <Link to={`/trips/${trip.trip_id}`} className="text-blue-600 hover:text-blue-800" title="View">
                                                         <FaEye />
                                                     </Link>
+                                                    {/* ✅ ADDED: Edit Button */}
+                                                    <Link to={`/trips/edit/${trip.trip_id}`} className="text-yellow-600 hover:text-yellow-800" title="Edit">
+                                                        <FaEdit />
+                                                    </Link>
+                                                    {/* ✅ ADDED: Delete Button */}
+                                                    <button onClick={() => deleteTrip(trip.trip_id)} className="text-red-600 hover:text-red-800" title="Delete">
+                                                        <FaTrash />
+                                                    </button>
                                                     {trip.status === 'Scheduled' && (
                                                         <button onClick={() => startTrip(trip.trip_id)} className="text-green-600 hover:text-green-800" title="Start Trip">
                                                             <FaPlay />

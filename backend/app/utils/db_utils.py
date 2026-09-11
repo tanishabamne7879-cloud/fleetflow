@@ -18,7 +18,7 @@ def get_mysql_connection():
     if match:
         user, password, host, port, database = match.groups()
     else:
-        user, password, host, port, database = "root", "123456", "localhost", "3307", "fleetflow_db"
+        user, password, host, port, database = "root", "", "localhost", "3306", "fleetflow_db"
     
     return mysql.connector.connect(
         host=host,

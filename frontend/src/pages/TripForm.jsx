@@ -1,14 +1,20 @@
+// frontend/src/pages/TripForm.jsx - Updated to handle edit
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { FaRoute, FaArrowLeft, FaTruck, FaUser, FaBox, FaBars, FaChartLine,FaSignOutAlt,FaUsers,FaWrench,FaMapMarkerAlt,FaUserCog } from 'react-icons/fa';
+import { FaRoute, FaArrowLeft, FaTruck, FaUser, FaBox, FaBars, FaChartLine,FaSignOutAlt,FaUsers,FaWrench,FaMapMarkerAlt,FaUserCog, FaSave } from 'react-icons/fa';
 
 const TripForm = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const { id } = useParams();
+    const isEdit = !!id;
+    
     const [loading, setLoading] = useState(false);
+    const [fetching, setFetching] = useState(isEdit);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [vehicles, setVehicles] = useState([]);
     const [drivers, setDrivers] = useState([]);
@@ -32,7 +38,8 @@ const TripForm = () => {
 
     useEffect(() => {
         fetchOptions();
-    }, []);
+        if (isEdit) fetchTrip();
+    }, [id]);
 
     const fetchOptions = async () => {
         try {
@@ -49,6 +56,27 @@ const TripForm = () => {
         }
     };
 
+    const fetchTrip = async () => {
+        try {
+            const response = await api.get(`/trips/${id}`);
+            const data = response.data;
+            setFormData({
+                vehicle_id: data.vehicle_id || '',
+                driver_id: data.driver_id || '',
+                shipment_id: data.shipment_id || '',
+                start_location: data.start_location || '',
+                destination: data.destination || '',
+                route_type: data.route_type || 'Fastest',
+                start_time: data.start_time || '',
+            });
+        } catch (error) {
+            toast.error('Failed to fetch trip');
+            navigate('/trips');
+        } finally {
+            setFetching(false);
+        }
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -58,8 +86,13 @@ const TripForm = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await api.post('/trips/', formData);
-            toast.success('Trip created successfully!');
+            if (isEdit) {
+                await api.put(`/trips/${id}`, formData);
+                toast.success('Trip updated successfully!');
+            } else {
+                await api.post('/trips/', formData);
+                toast.success('Trip created successfully!');
+            }
             navigate('/trips');
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Operation failed');
@@ -73,8 +106,17 @@ const TripForm = () => {
         navigate('/login');
     };
 
+    if (fetching) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="spinner"></div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* Navbar */}
             <nav className="bg-white shadow-md sticky top-0 z-50">
                 <div className="container-custom mx-auto">
                     <div className="flex justify-between items-center h-16">
@@ -113,6 +155,7 @@ const TripForm = () => {
                 </div>
             </nav>
 
+            {/* Sidebar */}
             <aside className={`fixed left-0 top-16 h-full bg-white shadow-lg transition-all duration-300 z-40 ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
                 <nav className="p-4 space-y-1">
                     <Link to="/dashboard" className="flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition">
@@ -154,6 +197,7 @@ const TripForm = () => {
                 </nav>
             </aside>
 
+            {/* Main Content */}
             <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'} p-6`}>
                 <div className="max-w-3xl mx-auto">
                     <button onClick={() => navigate('/trips')} className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 mb-4 transition">
@@ -162,8 +206,12 @@ const TripForm = () => {
                     </button>
 
                     <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 slide-up">
-                        <h3 className="text-2xl font-bold text-gray-900">Add New Trip</h3>
-                        <p className="text-sm text-gray-500 mt-1">Schedule a new trip with vehicle, driver, and shipment</p>
+                        <h3 className="text-2xl font-bold text-gray-900">
+                            {isEdit ? 'Edit Trip' : 'Add New Trip'}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {isEdit ? 'Update trip details' : 'Schedule a new trip with vehicle, driver, and shipment'}
+                        </p>
                         
                         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -295,10 +343,13 @@ const TripForm = () => {
                                     {loading ? (
                                         <div className="flex items-center">
                                             <div className="spinner-sm mr-2"></div>
-                                            Creating...
+                                            {isEdit ? 'Updating...' : 'Creating...'}
                                         </div>
                                     ) : (
-                                        'Create Trip'
+                                        <div className="flex items-center space-x-2">
+                                            <FaSave />
+                                            <span>{isEdit ? 'Update Trip' : 'Create Trip'}</span>
+                                        </div>
                                     )}
                                 </button>
                             </div>

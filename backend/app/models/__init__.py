@@ -9,3 +9,5 @@ from app.models.maintenance import VehicleMaintenance, MaintenanceStatusEnum
 from app.models.fuel_record import FuelRecord
 from app.models.notification import Notification, NotificationTypeEnum
 from app.models.attendance import Attendance
+
+# backend/app/models/__init__.py

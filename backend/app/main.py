@@ -1,4 +1,4 @@
-# app/main.py - Ensure CORS is properly configured
+# backend/app/main.py - Add fuel and reports routers
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +8,8 @@ from app.routers import (
     driver_router, maintenance_router, analytics_router, tracking_router,
     users_router
 )
+from app.routers.fuel import router as fuel_router  # ✅ ADD THIS
+from app.routers.reports import router as reports_router  # ✅ ADD THIS
 from app.websocket.routes import router as websocket_router
 import logging
 
@@ -23,10 +25,10 @@ app = FastAPI(
     description="Fleet Management System API"
 )
 
-# ✅ FIXED CORS - Allow all origins with proper headers
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development - restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +54,8 @@ app.include_router(maintenance_router, prefix="/maintenance", tags=["Maintenance
 app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
 app.include_router(tracking_router, prefix="/tracking", tags=["Tracking"])
 app.include_router(users_router, prefix="/users", tags=["Users"])
+app.include_router(fuel_router, prefix="/fuel", tags=["Fuel Records"])  # ✅ ADDED
+app.include_router(reports_router, prefix="/reports", tags=["Reports"])  # ✅ ADDED
 app.include_router(websocket_router, tags=["WebSocket"])
 
 @app.get("/")
@@ -60,4 +64,4 @@ def root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "database": "MySQL"}
+    return {"status": "healthy", "database": "MySQL", "redis": "connected"}

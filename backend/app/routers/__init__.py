@@ -8,6 +8,7 @@ from .analytics import router as analytics_router
 from .tracking import router as tracking_router
 from .users import router as users_router  # ✅ ADDED
 
+
 __all__ = [
     'auth_router',
     'vehicle_router',
@@ -19,3 +20,7 @@ __all__ = [
     'tracking_router',
     'users_router'  # ✅ ADDED
 ]
+# backend/app/routers/__init__.py
+
+from .fuel import router as fuel_router  # ✅ ADD THIS
+from .reports import router as reports_router  # ✅ ADD THIS

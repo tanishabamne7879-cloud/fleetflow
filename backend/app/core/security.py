@@ -1,20 +1,25 @@
+# backend/app/core/security.py
+
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.config import settings
 import bcrypt
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-# ✅ Password context with multiple schemes
+# ✅ Fixed Password context with bcrypt
 pwd_context = CryptContext(
-    schemes=["bcrypt", "sha256_crypt"],
-    deprecated="auto"
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,
 )
-
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
@@ -22,39 +27,44 @@ def hash_password(password: str) -> str:
         # Truncate if needed (bcrypt limit is 72 bytes)
         if len(password.encode('utf-8')) > 72:
             password = password[:72]
-        return pwd_context.hash(password, scheme="bcrypt")
+        return pwd_context.hash(password)
     except Exception as e:
-        print(f"Password hashing error: {e}")
+        logger.error(f"Password hashing error: {e}")
         # Fallback: use bcrypt directly
-        salt = bcrypt.gensalt(rounds=12)
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+        try:
+            salt = bcrypt.gensalt(rounds=12)
+            hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+            return hashed.decode('utf-8')
+        except Exception as e2:
+            logger.error(f"Fallback hashing also failed: {e2}")
+            raise
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a hashed password"""
     try:
-        # ✅ Handle bcrypt hash format
+        # ✅ Try bcrypt first
         if hashed_password.startswith('$2b$') or hashed_password.startswith('$2a$') or hashed_password.startswith('$2y$'):
             try:
-                # Use bcrypt directly
                 return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
             except Exception as e:
-                print(f"Bcrypt verification error: {e}")
-                # Try passlib as fallback
+                logger.warning(f"Bcrypt verification error: {e}")
+                # Fallback to passlib
                 try:
                     return pwd_context.verify(plain_password, hashed_password)
-                except:
+                except Exception as e2:
+                    logger.warning(f"Passlib verification error: {e2}")
                     return False
         
         # ✅ Use passlib for other formats
         try:
             return pwd_context.verify(plain_password, hashed_password)
-        except:
+        except Exception as e:
+            logger.warning(f"Passlib verification error: {e}")
             return False
             
     except Exception as e:
-        print(f"Password verification error: {e}")
+        logger.error(f"Password verification error: {e}")
         return False
 
 
@@ -75,5 +85,6 @@ def decode_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"Token decode error: {e}")
         return None

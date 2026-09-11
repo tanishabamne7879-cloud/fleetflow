@@ -1,55 +1,74 @@
+# backend/app/services/otp_service.py
+
+import random
+import string
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models.otp import OTP
-from app.services.email_service import EmailService
-from datetime import datetime, timedelta
-import uuid
+from app.services.email_service import send_otp_email
+import logging
+
+logger = logging.getLogger(__name__)
 
 class OTPService:
-    @staticmethod
-    def create_and_send_otp(db: Session, email: str) -> bool:
-        # Invalidate old OTPs
-        db.query(OTP).filter(
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def generate_otp(self, email: str, length: int = 6) -> str:
+        """Generate and save OTP for email"""
+        # Generate OTP code
+        otp_code = ''.join(random.choices(string.digits, k=length))
+        
+        # Delete old OTPs for this email
+        self.db.query(OTP).filter(
             OTP.email == email,
             OTP.is_used == False
-        ).update({"is_used": True})
-        db.commit()
+        ).delete()
         
-        # Generate new OTP
-        otp_code = EmailService.generate_otp()
-        
-        # Save to database
+        # Create new OTP
         otp = OTP(
-            otp_id=str(uuid.uuid4()),
             email=email,
             otp_code=otp_code,
             expires_at=datetime.utcnow() + timedelta(minutes=10)
         )
-        db.add(otp)
-        db.commit()
+        self.db.add(otp)
+        self.db.commit()
         
-        # Always print OTP and return True
-        print(f"\n{'='*50}")
-        print(f"📧 OTP for {email}: {otp_code}")
-        print(f"{'='*50}\n")
-        
+        # Send OTP via email
         try:
-            EmailService.send_otp_email(email, otp_code)
+            send_otp_email(email, otp_code)
+            logger.info(f"✅ OTP sent to {email}")
         except Exception as e:
-            print(f"⚠️ Email sending failed: {e}")
+            logger.error(f"❌ Failed to send OTP email: {e}")
         
-        return True
+        return otp_code
     
-    @staticmethod
-    def verify_otp(db: Session, email: str, otp_code: str) -> bool:
-        otp = db.query(OTP).filter(
+    def verify_otp(self, email: str, otp_code: str) -> bool:
+        """Verify OTP code"""
+        otp = self.db.query(OTP).filter(
             OTP.email == email,
             OTP.otp_code == otp_code,
             OTP.is_used == False,
             OTP.expires_at > datetime.utcnow()
         ).first()
         
-        if otp:
-            otp.is_used = True
-            db.commit()
-            return True
-        return False
+        if not otp:
+            return False
+        
+        # Mark OTP as used
+        otp.is_used = True
+        self.db.commit()
+        
+        return True
+    
+    def resend_otp(self, email: str) -> str:
+        """Resend OTP"""
+        # Delete old OTPs
+        self.db.query(OTP).filter(
+            OTP.email == email,
+            OTP.is_used == False
+        ).delete()
+        self.db.commit()
+        
+        # Generate new OTP
+        return self.generate_otp(email)

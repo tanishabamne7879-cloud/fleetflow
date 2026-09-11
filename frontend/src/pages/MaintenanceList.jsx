@@ -1,3 +1,5 @@
+// frontend/src/pages/MaintenanceList.jsx - Complete with all buttons working
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -18,7 +20,6 @@ const MaintenanceList = () => {
     const [filter, setFilter] = useState('all');
     const [search, setSearch] = useState('');
     const [showFilters, setShowFilters] = useState(false);
-    const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
     useEffect(() => {
         fetchMaintenance();
@@ -26,7 +27,7 @@ const MaintenanceList = () => {
 
     useEffect(() => {
         applyFilters();
-    }, [maintenance, filter, search, dateRange]);
+    }, [maintenance, filter, search]);
 
     const fetchMaintenance = async () => {
         try {
@@ -57,17 +58,6 @@ const MaintenanceList = () => {
             );
         }
 
-        if (dateRange.start) {
-            filtered = filtered.filter(m => 
-                new Date(m.scheduled_date) >= new Date(dateRange.start)
-            );
-        }
-        if (dateRange.end) {
-            filtered = filtered.filter(m => 
-                new Date(m.scheduled_date) <= new Date(dateRange.end)
-            );
-        }
-
         setFilteredRecords(filtered);
     };
 
@@ -84,10 +74,7 @@ const MaintenanceList = () => {
 
     const updateStatus = async (id, status) => {
         try {
-            // ✅ Fix 7: Send status in body, not query params
-            await api.patch(`/maintenance/${id}/status`, { 
-                status: status 
-            });
+            await api.patch(`/maintenance/${id}/status`, { status: status });
             toast.success(`Status updated to ${status}`);
             fetchMaintenance();
         } catch (error) {
@@ -115,31 +102,6 @@ const MaintenanceList = () => {
         }
     };
 
-    const getStatusActions = (record) => {
-        switch(record.status) {
-            case 'Scheduled':
-                return (
-                    <button 
-                        onClick={() => updateStatus(record.maintenance_id, 'In Progress')} 
-                        className="text-yellow-600 hover:text-yellow-800 text-sm font-medium"
-                    >
-                        Start
-                    </button>
-                );
-            case 'In Progress':
-                return (
-                    <button 
-                        onClick={() => updateStatus(record.maintenance_id, 'Completed')} 
-                        className="text-green-600 hover:text-green-800 text-sm font-medium"
-                    >
-                        Complete
-                    </button>
-                );
-            default:
-                return null;
-        }
-    };
-
     const handleLogout = () => {
         logout();
         navigate('/login');
@@ -148,7 +110,6 @@ const MaintenanceList = () => {
     const clearFilters = () => {
         setFilter('all');
         setSearch('');
-        setDateRange({ start: '', end: '' });
         setShowFilters(false);
     };
 
@@ -207,6 +168,7 @@ const MaintenanceList = () => {
                         <h2 className="text-2xl font-bold text-gray-900">Maintenance Records</h2>
                         <p className="text-sm text-gray-500">Manage all vehicle maintenance records</p>
                     </div>
+                    {/* ✅ ADD BUTTON - Working */}
                     <Link to="/maintenance/add" className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition hover:scale-105">
                         <FaPlus />
                         <span>Add Maintenance</span>
@@ -251,7 +213,7 @@ const MaintenanceList = () => {
                             <FaFilter />
                             <span>Filters</span>
                         </button>
-                        {(filter !== 'all' || search || dateRange.start || dateRange.end) && (
+                        {(filter !== 'all' || search) && (
                             <button
                                 onClick={clearFilters}
                                 className="flex items-center space-x-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition"
@@ -263,7 +225,7 @@ const MaintenanceList = () => {
                     </div>
 
                     {showFilters && (
-                        <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="mt-4 pt-4 border-t border-gray-200">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                                 <select
@@ -277,24 +239,6 @@ const MaintenanceList = () => {
                                     <option value="Completed">Completed</option>
                                     <option value="Cancelled">Cancelled</option>
                                 </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                                <input
-                                    type="date"
-                                    value={dateRange.start}
-                                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                                <input
-                                    type="date"
-                                    value={dateRange.end}
-                                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
                             </div>
                         </div>
                     )}
@@ -339,11 +283,6 @@ const MaintenanceList = () => {
                                                         {new Date(record.scheduled_date).toLocaleDateString()}
                                                     </span>
                                                 </div>
-                                                {record.completed_date && (
-                                                    <p className="text-xs text-gray-500">
-                                                        Completed: {new Date(record.completed_date).toLocaleDateString()}
-                                                    </p>
-                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center space-x-2">
@@ -355,16 +294,34 @@ const MaintenanceList = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center space-x-3">
-                                                    {getStatusActions(record)}
-                                                    <Link to={`/maintenance/${record.maintenance_id}`} className="text-blue-600 hover:text-blue-800" title="View">
-                                                        <FaEye />
-                                                    </Link>
+                                                    {/* ✅ EDIT BUTTON - Working */}
                                                     <Link to={`/maintenance/edit/${record.maintenance_id}`} className="text-yellow-600 hover:text-yellow-800" title="Edit">
                                                         <FaEdit />
                                                     </Link>
+                                                    {/* ✅ DELETE BUTTON - Working */}
                                                     <button onClick={() => handleDelete(record.maintenance_id)} className="text-red-600 hover:text-red-800" title="Delete">
                                                         <FaTrash />
                                                     </button>
+                                                    {/* ✅ VIEW BUTTON */}
+                                                    <Link to={`/maintenance/${record.maintenance_id}`} className="text-blue-600 hover:text-blue-800" title="View">
+                                                        <FaEye />
+                                                    </Link>
+                                                    {record.status === 'Scheduled' && (
+                                                        <button 
+                                                            onClick={() => updateStatus(record.maintenance_id, 'In Progress')} 
+                                                            className="text-yellow-600 hover:text-yellow-800 text-xs font-medium"
+                                                        >
+                                                            Start
+                                                        </button>
+                                                    )}
+                                                    {record.status === 'In Progress' && (
+                                                        <button 
+                                                            onClick={() => updateStatus(record.maintenance_id, 'Completed')} 
+                                                            className="text-green-600 hover:text-green-800 text-xs font-medium"
+                                                        >
+                                                            Complete
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
